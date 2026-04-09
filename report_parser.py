@@ -1,0 +1,66 @@
+import re
+from datetime import datetime
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import Optional, List
+from config import VALID_PLATFORMS
+
+class SalesReport(BaseModel):
+    name: str
+    email: EmailStr
+    payment_plan: str  # 6PIF or 6PP
+    amount: float
+    platform: str
+    notes: Optional[str] = "N/A"
+    date: str
+
+    @field_validator('platform')
+    @classmethod
+    def validate_platform(cls, v):
+        if v not in VALID_PLATFORMS:
+            raise ValueError(f"Unknown platform: {v}")
+        return v
+
+def parse_sales_report(text: str) -> Optional[dict]:
+    """Parses raw telegram text into a structured dictionary."""
+    try:
+        # Extract fields using regex
+        name_match = re.search(r"Name:\s*(.*)", text, re.IGNORECASE)
+        email_match = re.search(r"Email:\s*([\w\.-]+@[\w\.-]+)", text, re.IGNORECASE)
+        plan_match = re.search(r"Payment plan:\s*(.*)", text, re.IGNORECASE)
+        amount_match = re.search(r"Amount:\s*\$?([\d,]+)", text, re.IGNORECASE)
+        platform_match = re.search(r"Platform:\s*(.*)", text, re.IGNORECASE)
+        notes_match = re.search(r"Notes:\s*(.*)", text, re.IGNORECASE | re.DOTALL)
+
+        if not all([name_match, email_match, plan_match, amount_match, platform_match]):
+            return None
+
+        # Determine Payment Plan Code
+        plan_raw = plan_match.group(1).lower()
+        if "paid in full" in plan_raw:
+            payment_plan = "6PIF"
+        elif any(x in plan_raw for x in ["payment plan", "installments"]):
+            payment_plan = "6PP"
+        else:
+            payment_plan = "UNKNOWN"
+
+        # Sanitize Amount
+        amount_str = amount_match.group(1).replace(",", "")
+        amount = float(amount_str)
+
+        # Structure data
+        data = {
+            "name": name_match.group(1).strip(),
+            "email": email_match.group(1).strip(),
+            "payment_plan": payment_plan,
+            "amount": amount,
+            "platform": platform_match.group(1).strip(),
+            "notes": notes_match.group(1).strip() if notes_match else "N/A",
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        # Basic Pydantic Validation
+        report = SalesReport(**data)
+        return data
+
+    except Exception:
+        return None
