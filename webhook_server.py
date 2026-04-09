@@ -7,6 +7,10 @@ from utils import logger
 
 app = FastAPI()
 
+@app.get("/")
+async def home():
+    return {"status": "online", "message": "Telegram Automation Webhook Server is running!"}
+
 @app.post("/ghl-webhook")
 async def ghl_webhook(request: Request, background_tasks: BackgroundTasks, token: str = Query(None)):
     """Processes incoming webhooks from GoHighLevel with token security."""
