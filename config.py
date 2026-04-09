@@ -29,8 +29,8 @@ VALID_PLATFORMS = [
 PROGRAMS = {
     "default": {
         "tags": {
-            "6PIF": "#6mo-full-contract-send",
-            "6PP": "#6mo-full-pplan-contract-send"
+            "6 PIF": "#6mo-full-contract-send",
+            "6 Payment Plan": "#6mo-full-pplan-contract-send"
         },
         "webhook_tags": {
             "course_access": ["#6mo-full-payment-april", "#6mo-payment-plan-april"],

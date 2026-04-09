@@ -11,21 +11,33 @@ async def handle_closers_message(update: Update, context: ContextTypes.DEFAULT_T
     if not update.message or not update.message.text:
         return
 
-    # Check if message is in the correct group and contains trigger
-    if update.message.chat_id != CLOSERS_GROUP_ID:
-        return
-
+    chat_id = update.message.chat_id
     text = update.message.text
-    if "Status: Closed" not in text:
+    sender_name = update.message.from_user.first_name if update.message.from_user else "Unknown"
+    
+    # Debug logging to see what's happening
+    logger.info(f"Message received from {sender_name} (Chat ID: {chat_id})")
+    
+    # 1. Check if message is in the correct group
+    if chat_id != CLOSERS_GROUP_ID:
+        logger.info(f"Ignoring message because Chat ID {chat_id} does not match CLOSERS_GROUP_ID {CLOSERS_GROUP_ID}")
         return
 
-    logger.info("Sales report detected, processing...")
+    # 2. Check for trigger
+    if "Status: Closed" not in text:
+        logger.info("Ignoring message: 'Status: Closed' trigger not found.")
+        return
+
+    logger.info(f"Sales report detected from {sender_name}, processing...")
     
-    # 1. Parse Report
+    # 3. Parse Report
     data = parse_sales_report(text)
     if not data:
         await send_va_alert("Invalid format or missing fields in sales report.", text)
         return
+    
+    # Add closer name to data
+    data['closer_name'] = sender_name
 
     # 2. Find Sheet Row
     row_index = sheets_service.find_row_by_email(data['email'])
@@ -36,16 +48,7 @@ async def handle_closers_message(update: Update, context: ContextTypes.DEFAULT_T
         await send_va_alert(f"Contact {data['email']} not found in Sheet rows.", text)
         return
 
-    # 3. Duplicate Check: Verify if Column E is already filled
-    try:
-        existing_val = sheets_service.sheet.cell(row_index, 5).value # Column E: Payment Plan
-        if existing_val:
-            logger.info(f"Duplicate detected for {data['email']} at Row {row_index}. Skipping.")
-            return
-    except Exception as e:
-        logger.error(f"Error checking duplicate: {e}")
-
-    # 4. Update Sheet
+    # 3. Update Sheet
     success = sheets_service.update_sales_data(row_index, data)
     if not success:
         await send_va_alert("Failed to update Google Sheet row.", text)

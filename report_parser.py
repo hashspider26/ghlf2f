@@ -34,12 +34,12 @@ def parse_sales_report(text: str) -> Optional[dict]:
         if not all([name_match, email_match, plan_match, amount_match, platform_match]):
             return None
 
-        # Determine Payment Plan Code
+        # Determine Payment Plan Code (Matching your dropdowns)
         plan_raw = plan_match.group(1).lower()
         if "paid in full" in plan_raw:
-            payment_plan = "6PIF"
+            payment_plan = "6 PIF"
         elif any(x in plan_raw for x in ["payment plan", "installments"]):
-            payment_plan = "6PP"
+            payment_plan = "6 Payment Plan"
         else:
             payment_plan = "UNKNOWN"
 
@@ -48,6 +48,9 @@ def parse_sales_report(text: str) -> Optional[dict]:
         amount = float(amount_str)
 
         # Structure data
+        now = datetime.now()
+        date_str = f"{now.month}/{now.day}/{now.year}"
+        
         data = {
             "name": name_match.group(1).strip(),
             "email": email_match.group(1).strip(),
@@ -55,7 +58,7 @@ def parse_sales_report(text: str) -> Optional[dict]:
             "amount": amount,
             "platform": platform_match.group(1).strip(),
             "notes": notes_match.group(1).strip() if notes_match else "N/A",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "date": date_str
         }
 
         # Basic Pydantic Validation
