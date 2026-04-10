@@ -24,8 +24,8 @@ def parse_sales_report(text: str) -> Optional[dict]:
     """Parses raw telegram text into a structured dictionary."""
     try:
         # Extract fields using regex
-        name_match = re.search(r"Name:\s*(.*)", text, re.IGNORECASE)
-        email_match = re.search(r"Email:\s*([\w\.-]+@[\w\.-]+)", text, re.IGNORECASE)
+        name_match = re.search(r"Name:\s*\[?([^\]\n]+)\]?", text, re.IGNORECASE)
+        email_match = re.search(r"Email:\s*\[?([\w\.-]+@[\w\.-]+)\]?", text, re.IGNORECASE)
         plan_match = re.search(r"Payment plan:\s*(.*)", text, re.IGNORECASE)
         amount_match = re.search(r"Amount:\s*\$?([\d,\.]+)", text, re.IGNORECASE)
         platform_match = re.search(r"(?:Payment )?Platform:\s*(.*)", text, re.IGNORECASE)
@@ -58,8 +58,8 @@ def parse_sales_report(text: str) -> Optional[dict]:
         date_str = f"{now.month}/{now.day}/{now.year}"
         
         data = {
-            "name": name_match.group(1).strip(),
-            "email": email_match.group(1).strip(),
+            "name": name_match.group(1).strip().strip("[]"),
+            "email": email_match.group(1).strip().strip("[]"),
             "payment_plan": payment_plan,
             "amount": amount,
             "platform": platform_raw,
