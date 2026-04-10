@@ -27,8 +27,8 @@ def parse_sales_report(text: str) -> Optional[dict]:
         name_match = re.search(r"Name:\s*(.*)", text, re.IGNORECASE)
         email_match = re.search(r"Email:\s*([\w\.-]+@[\w\.-]+)", text, re.IGNORECASE)
         plan_match = re.search(r"Payment plan:\s*(.*)", text, re.IGNORECASE)
-        amount_match = re.search(r"Amount:\s*\$?([\d,]+)", text, re.IGNORECASE)
-        platform_match = re.search(r"Platform:\s*(.*)", text, re.IGNORECASE)
+        amount_match = re.search(r"Amount:\s*\$?([\d,\.]+)", text, re.IGNORECASE)
+        platform_match = re.search(r"(?:Payment )?Platform:\s*(.*)", text, re.IGNORECASE)
         notes_match = re.search(r"Notes:\s*(.*)", text, re.IGNORECASE | re.DOTALL)
 
         if not all([name_match, email_match, plan_match, amount_match, platform_match]):
@@ -43,9 +43,15 @@ def parse_sales_report(text: str) -> Optional[dict]:
         else:
             payment_plan = "UNKNOWN"
 
-        # Sanitize Amount
+        # Sanitize Amount (Handle $7,225.00 format)
         amount_str = amount_match.group(1).replace(",", "")
         amount = float(amount_str)
+
+        # Sanitize Platform (Handle lowercase input like 'stripe')
+        platform_raw = platform_match.group(1).strip().capitalize()
+        # Edge case for Wire Transfer (needs two words capitalized)
+        if platform_raw.lower() == "wire transfer":
+            platform_raw = "Wire Transfer"
 
         # Structure data
         now = datetime.now()
@@ -56,7 +62,7 @@ def parse_sales_report(text: str) -> Optional[dict]:
             "email": email_match.group(1).strip(),
             "payment_plan": payment_plan,
             "amount": amount,
-            "platform": platform_match.group(1).strip(),
+            "platform": platform_raw,
             "notes": notes_match.group(1).strip() if notes_match else "N/A",
             "date": date_str
         }
