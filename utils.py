@@ -30,3 +30,17 @@ async def send_va_alert(message: str, original_text: str = None):
         logger.warning(f"VA Alert sent: {message}")
     except Exception as e:
         logger.error(f"Failed to send VA alert: {e}")
+
+async def send_telegram_reply(chat_id: int, message_id: int, text: str):
+    """Sends a reply to a specific message in a chat."""
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    try:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_to_message_id=message_id
+        )
+        logger.info(f"Sent reply to message {message_id} in {chat_id}")
+    except Exception as e:
+        logger.error(f"Failed to send reply to {message_id}: {e}")
+

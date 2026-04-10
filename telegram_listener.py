@@ -5,9 +5,11 @@ from sheets_service import sheets_service
 from ghl_service import ghl_service
 from config import CLOSERS_GROUP_ID, PROGRAMS
 from utils import logger, send_va_alert
+from database import save_message_tracking
 
 async def handle_closers_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Monitors the closers group and processes 'Status: Closed' reports."""
+
     if not update.message or not update.message.text:
         return
 
@@ -50,9 +52,13 @@ async def handle_closers_message(update: Update, context: ContextTypes.DEFAULT_T
 
     # 3. Update Sheet
     success = sheets_service.update_sales_data(row_index, data)
-    if not success:
+    if success:
+        # Save the Telegram Message ID so we can reply later
+        save_message_tracking(data['email'], update.message.message_id)
+    else:
         await send_va_alert("Failed to update Google Sheet row.", text)
         return
+
 
     # 5. Apply GHL Tag
     ghl_contact = ghl_service.get_contact_by_email(data['email'])
