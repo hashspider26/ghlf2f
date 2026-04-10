@@ -15,40 +15,46 @@ class SheetsService:
         google_creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
         
         if google_creds_json:
-            # Load from environment variable (Railway)
             creds_dict = json.loads(google_creds_json)
             self.creds = Credentials.from_service_account_info(
                 creds_dict, scopes=self.scope
             )
         else:
-            # Fallback to local file
             self.creds = Credentials.from_service_account_file(
                 GOOGLE_SERVICE_ACCOUNT_FILE, scopes=self.scope
             )
             
         self.client = gspread.authorize(self.creds)
+        self.spreadsheet = self.client.open_by_key(GOOGLE_SHEET_ID)
         
-        # Flexible lookup to avoid 'WorksheetNotFound' due to spaces/dashes
-        all_sheets = self.client.open_by_key(GOOGLE_SHEET_ID).worksheets()
-        self.sheet = None
+        # 1. Connect to Sales Sheet
+        all_sheets = self.spreadsheet.worksheets()
+        self.sales_sheet = None
         for s in all_sheets:
             title = s.title.upper()
             if "MENTORSHIP" in title and "SALES" in title:
-                self.sheet = s
-                logger.info(f"Connected to sheet tab: '{s.title}'")
+                self.sales_sheet = s
+                logger.info(f"Connected to Sales Sheet: '{s.title}'")
                 break
         
-        if not self.sheet:
-            # Fallback to first sheet if keywords not found
-            self.sheet = all_sheets[0]
-            logger.warning(f"Could not find Mentorship Sales tab. Falling back to '{self.sheet.title}'")
+        if not self.sales_sheet:
+            self.sales_sheet = all_sheets[0]
+            logger.warning(f"Could not find Sales tab. Falling back to '{self.sales_sheet.title}'")
+
+        # 2. Connect to (or create) Memory Sheet
+        try:
+            self.memory_sheet = self.spreadsheet.worksheet("BOT_MEMORY")
+            logger.info("Connected to 'BOT_MEMORY' storage sheet.")
+        except gspread.WorksheetNotFound:
+            self.memory_sheet = self.spreadsheet.add_worksheet(title="BOT_MEMORY", rows="1000", cols="3")
+            self.memory_sheet.append_row(["Email", "Message ID", "Timestamp"])
+            logger.info("Created new 'BOT_MEMORY' storage sheet.")
 
     def find_row_by_email(self, email: str):
-        """Finds row index by matching email in column C (Index 3)."""
+        """Finds row index in Sales Sheet by matching email in column C (Index 3)."""
         try:
             email_clean = email.strip().lower()
-            # Find the value in column 3 (Email) based on screenshot
-            cells = self.sheet.findall(email_clean, in_column=3)
+            cells = self.sales_sheet.findall(email_clean, in_column=3)
             for cell in cells:
                 if cell.value.strip().lower() == email_clean:
                     return cell.row
@@ -58,28 +64,20 @@ class SheetsService:
             return None
 
     def find_row_by_name(self, name: str):
-        """Finds row index by matching name in column B (Index 2)."""
+        """Finds row index in Sales Sheet by matching name in column B (Index 2)."""
         try:
             name_clean = name.strip()
             import re
             pattern = re.compile(rf"^{re.escape(name_clean)}$", re.IGNORECASE)
-            # Full Name is column 2 based on screenshot
-            cell = self.sheet.find(pattern, in_column=2)
+            cell = self.sales_sheet.find(pattern, in_column=2)
             return cell.row if cell else None
         except Exception as e:
             logger.error(f"Sheet Error (find_by_name): {e}")
             return None
 
     def update_sales_data(self, row_index: int, data: dict):
-        """Updates the columns based on your MENTORSHIP-SALES screenshot."""
+        """Updates main Sales Sheet columns."""
         try:
-            # Updated Mapping:
-            # Column G (7): Closer's Name
-            # Column J (10): Payment Plan
-            # Column K (11): Payment Platform
-            # Column L (12): Date
-            # Column M (13): 1st Payment
-            # Column O (15): Notes
             updates = [
                 {'range': f'G{row_index}', 'values': [[data['closer_name']]]},
                 {'range': f'J{row_index}', 'values': [[data['payment_plan']]]},
@@ -88,25 +86,62 @@ class SheetsService:
                 {'range': f'M{row_index}', 'values': [[data['amount']]]},
                 {'range': f'O{row_index}', 'values': [[data['notes']]]},
             ]
-            self.sheet.batch_update(updates)
-            logger.info(f"Updated row {row_index} in Google Sheet.")
+            self.sales_sheet.batch_update(updates)
+            logger.info(f"Updated row {row_index} in Sales Sheet.")
             return True
         except Exception as e:
             logger.error(f"Sheet Error (update_sales_data): {e}")
             return False
 
-    def update_onboarding_status(self, row_index: int, column: str, value: bool = True):
-        """Updates onboarding checkboxes (Column R for Contract, S for Course)."""
+    def update_onboarding_status(self, row_index: int, column: str, value: str = "✅"):
+        """Updates onboarding status (writes ✅ by default)."""
         try:
             cell_range = f"{column}{row_index}"
-            
-            # Set the value to True (This checks the box if one exists)
-            self.sheet.update_acell(cell_range, value)
-            logger.info(f"Updated onboarding status for Row {row_index} in Column {column}")
+            self.sales_sheet.update_acell(cell_range, value)
+            logger.info(f"Updated onboarding status in {column}{row_index}")
             return True
         except Exception as e:
-            logger.error(f"Error updating onboarding status at {column}{row_index}: {e}")
+            logger.error(f"Error updating status: {e}")
             return False
 
-sheets_service = SheetsService()
+    # --- BOT MEMORY METHODS ---
 
+    def save_message_tracking(self, email: str, message_id: int):
+        """Saves message link in the hidden BOT_MEMORY sheet."""
+        try:
+            email_clean = email.strip().lower()
+            # Try to find existing entry
+            try:
+                cell = self.memory_sheet.find(email_clean, in_column=1)
+                if cell:
+                    self.memory_sheet.update_acell(f"B{cell.row}", str(message_id))
+                    logger.info(f"Updated existing memory for {email_clean}")
+                    return True
+            except gspread.CellNotFound:
+                pass
+            
+            # If not found, append new row
+            from datetime import datetime
+            self.memory_sheet.append_row([email_clean, str(message_id), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+            logger.info(f"Added new memory entry for {email_clean}")
+            return True
+        except Exception as e:
+            logger.error(f"Memory Save Error: {e}")
+            return False
+
+    def get_message_tracking(self, email: str):
+        """Retrieves message ID from the hidden BOT_MEMORY sheet."""
+        try:
+            email_clean = email.strip().lower()
+            cell = self.memory_sheet.find(email_clean, in_column=1)
+            if cell:
+                val = self.memory_sheet.acell(f"B{cell.row}").value
+                return int(val) if val else None
+            return None
+        except gspread.CellNotFound:
+            return None
+        except Exception as e:
+            logger.error(f"Memory Get Error: {e}")
+            return None
+
+sheets_service = SheetsService()

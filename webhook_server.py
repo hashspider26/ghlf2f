@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, Query
 from sheets_service import sheets_service
 from config import PROGRAMS, WEBHOOK_SECRET, CLOSERS_GROUP_ID
 from utils import logger, send_telegram_reply
-from database import get_message_tracking
 
 app = FastAPI()
 
@@ -52,9 +51,9 @@ async def ghl_webhook(request: Request, background_tasks: BackgroundTasks, token
         sheets_service.update_onboarding_status(row_index, "S")
         onboarded = True
 
-    # Send Notification to Closers Group (using local memory)
+    # Send Notification to Closers Group (using hidden sheet tab storage)
     if onboarded:
-        msg_id = get_message_tracking(email)
+        msg_id = sheets_service.get_message_tracking(email)
         if msg_id:
             background_tasks.add_task(
                 send_telegram_reply, 
@@ -62,7 +61,7 @@ async def ghl_webhook(request: Request, background_tasks: BackgroundTasks, token
                 msg_id, 
                 "this has been onboarded!"
             )
-            logger.info(f"Queued onboarding reply for {email} using local memory.")
+            logger.info(f"Queued onboarding reply for {email} using Sheets storage.")
 
     return {"status": "success"}
 
