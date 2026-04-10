@@ -100,19 +100,10 @@ class SheetsService:
         try:
             cell_range = f"{column}{row_index}"
             
-            # This ensures the cell has a Checkbox format (Data Validation)
-            self.sheet.format(cell_range, {
-                "dataValidation": {
-                    "condition": {
-                        "type": "BOOLEAN"
-                    },
-                    "showCustomUi": True
-                }
-            })
-            
-            # Now set the value to True to check the box
+            # Set the value to True (This checks the box if one exists)
             self.sheet.update_acell(cell_range, value)
             logger.info(f"Updated onboarding status for Row {row_index} in Column {column}")
+            return True
         except Exception as e:
             logger.error(f"Error updating onboarding status at {column}{row_index}: {e}")
             return False
