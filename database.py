@@ -2,7 +2,11 @@ import sqlite3
 import os
 from utils import logger
 
-DB_PATH = "bot_memory.db"
+# Use Railway Volume path if it exists, otherwise use local path
+if os.path.exists("/data"):
+    DB_PATH = "/data/bot_memory.db"
+else:
+    DB_PATH = "bot_memory.db"
 
 def init_db():
     """Initializes the SQLite database."""
