@@ -95,14 +95,26 @@ class SheetsService:
             logger.error(f"Sheet Error (update_sales_data): {e}")
             return False
 
-    def update_onboarding_status(self, row_index: int, column: str, value: str = "TRUE"):
+    def update_onboarding_status(self, row_index: int, column: str, value: bool = True):
         """Updates onboarding checkboxes (Column R for Contract, S for Course)."""
         try:
-            self.sheet.update_acell(f"{column}{row_index}", value)
-            logger.info(f"Updated column {column} in row {row_index} to {value}.")
-            return True
+            cell_range = f"{column}{row_index}"
+            
+            # This ensures the cell has a Checkbox format (Data Validation)
+            self.sheet.format(cell_range, {
+                "dataValidation": {
+                    "condition": {
+                        "type": "BOOLEAN"
+                    },
+                    "showCustomUi": True
+                }
+            })
+            
+            # Now set the value to True to check the box
+            self.sheet.update_acell(cell_range, value)
+            logger.info(f"Updated onboarding status for Row {row_index} in Column {column}")
         except Exception as e:
-            logger.error(f"Sheet Error (update_onboarding): {e}")
+            logger.error(f"Error updating onboarding status at {column}{row_index}: {e}")
             return False
 
 sheets_service = SheetsService()
