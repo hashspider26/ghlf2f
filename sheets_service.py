@@ -109,14 +109,20 @@ class SheetsService:
             return False
 
     def update_onboarding_status(self, row_index: int, column: str, value: str = "✅"):
-        """Updates onboarding status (writes ✅ by default)."""
+        """Updates onboarding status (writes ✅ by default). Returns True if updated, False if already set."""
         try:
             cell_range = f"{column}{row_index}"
+            current_val = self.sales_sheet.acell(cell_range).value
+            
+            if current_val == value:
+                logger.info(f"Onboarding status in {cell_range} is already {value}. Skipping update.")
+                return False
+
             self.sales_sheet.update_acell(cell_range, value)
-            logger.info(f"Updated onboarding status in {column}{row_index}")
+            logger.info(f"Updated onboarding status in {cell_range} to {value}")
             return True
         except Exception as e:
-            logger.error(f"Error updating status: {e}")
+            logger.error(f"Error updating status in {column}{row_index}: {e}")
             return False
 
     def save_message_tracking(self, email: str, message_id: int):

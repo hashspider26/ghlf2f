@@ -1,6 +1,6 @@
 import logging
 import sys
-from telegram import Bot
+from telegram import Bot, ReplyParameters
 import asyncio
 from config import TELEGRAM_BOT_TOKEN, VA_GROUP_ID
 
@@ -38,7 +38,7 @@ async def send_telegram_reply(chat_id: int, message_id: int, text: str):
         await bot.send_message(
             chat_id=chat_id,
             text=text,
-            reply_to_message_id=message_id
+            reply_parameters=ReplyParameters(message_id=message_id)
         )
         logger.info(f"Sent reply to message {message_id} in {chat_id}")
     except Exception as e:
