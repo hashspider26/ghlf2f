@@ -75,19 +75,20 @@ def parse_sales_report(text: str) -> Optional[dict]:
                 break
 
         if not payment_plan:
-            # Traditional Detection Logic
+            # Traditional Detection Logic - STRICT
+            if "custom" in plan_raw:
+                logger.warning(f"Custom plan detected: '{plan_raw}'. Triggering human review.")
+                return None
+
             months = None
             if "12" in plan_raw: months = "12"
             elif "6" in plan_raw: months = "6"
             elif "3" in plan_raw: months = "3"
-            elif any(x in plan_raw for x in ["paid", "full", "pif", "custom", "plan", "pp"]):
-                 months = "6" # Assume 6 only if they specified PIF, Custom or generic Plan
+            # NO DEFAULT ASSUMPTION. If no months are specified, it remains None.
             
             if months:
                 if "1month" in plan_raw.replace(" ", ""):
                     payment_plan = "1month"
-                elif "custom" in plan_raw:
-                    payment_plan = f"{months} custom plan"
                 elif any(x in plan_raw for x in ["paid", "full", "pif"]):
                     payment_plan = f"{months} PIF"
                 elif any(x in plan_raw for x in ["pp", "plan", "install"]):
