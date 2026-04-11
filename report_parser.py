@@ -44,36 +44,53 @@ def parse_sales_report(text: str) -> Optional[dict]:
         amount_line = re.search(r"Amount:\s*(.*)", full_text, re.IGNORECASE)
         amount = 0.0
         if amount_line:
+            raw_amount = amount_line.group(1).lower()
+            # If it contains both 'paid' and 'pending' (or 'panding'), trigger human intervention
+            if "paid" in raw_amount and ("pend" in raw_amount or "pand" in raw_amount):
+                logger.warning(f"Complex split payment detected in Amount: '{raw_amount}'. Triggering human review.")
+                return None
+
             first_num_match = re.search(r"[\d,\.]+", amount_line.group(1))
             if first_num_match:
                 amount = float(first_num_match.group(0).replace(',', ''))
         
         # 4. STRICT Plan Detection
-        plan_line = re.search(r"Payment plan:\s*(.*)", full_text, re.IGNORECASE)
-        plan_raw = plan_line.group(1).lower().strip() if plan_line else ""
+        # Capture everything between "Payment plan:" and the next field (Amount/Platform)
+        plan_match = re.search(r"Payment plan:\s*([\s\S]*?)(?=Amount:|Payment Platform:|Platform:|$)", full_text, re.IGNORECASE)
+        plan_raw = plan_match.group(1).lower().strip() if plan_match else ""
         
-        # Check for duration
-        months = None
-        if "12" in plan_raw: months = "12"
-        elif "6" in plan_raw: months = "6"
-        elif "3" in plan_raw: months = "3"
-        elif any(x in plan_raw for x in ["paid", "full", "pif", "custom"]):
-             months = "6" # Assume 6 only if they specified PIF or Custom
-        
-        # Determine specific mapping
+        # Numeric Mapping (Magic Numbers)
+        PRICE_TO_PLAN = {
+            "1960": "6 Payment Plan",
+            "1125": "12 Payment Plan",
+            "7225": "6 PIF",
+            "9800": "12 PIF"
+        }
+
+        # Check for magic numbers first
         payment_plan = None
-        if months:
-            if "1month" in plan_raw.replace(" ", ""):
-                payment_plan = "1month"
-            elif "custom" in plan_raw:
-                payment_plan = f"{months} custom plan"
-            elif any(x in plan_raw for x in ["paid", "full", "pif"]):
-                payment_plan = f"{months} PIF"
-            elif any(x in plan_raw for x in ["pp", "plan", "install"]):
-                # Apply exact match for 6Payment Plan (no space) or others
-                if months == "6":
-                    payment_plan = "6Payment Plan"
-                else:
+        for price, plan in PRICE_TO_PLAN.items():
+            if price in plan_raw:
+                payment_plan = plan
+                break
+
+        if not payment_plan:
+            # Traditional Detection Logic
+            months = None
+            if "12" in plan_raw: months = "12"
+            elif "6" in plan_raw: months = "6"
+            elif "3" in plan_raw: months = "3"
+            elif any(x in plan_raw for x in ["paid", "full", "pif", "custom", "plan", "pp"]):
+                 months = "6" # Assume 6 only if they specified PIF, Custom or generic Plan
+            
+            if months:
+                if "1month" in plan_raw.replace(" ", ""):
+                    payment_plan = "1month"
+                elif "custom" in plan_raw:
+                    payment_plan = f"{months} custom plan"
+                elif any(x in plan_raw for x in ["paid", "full", "pif"]):
+                    payment_plan = f"{months} PIF"
+                elif any(x in plan_raw for x in ["pp", "plan", "install"]):
                     payment_plan = f"{months} Payment Plan"
 
         # If we couldn't determine a SPECIFIC plan, trigger human intervention
@@ -112,7 +129,6 @@ def parse_sales_report(text: str) -> Optional[dict]:
         }
 
         # Final match check against known sheet strings
-        # Note: 6Payment Plan is exactly what's in the screenshot (no space)
         SalesReport(**data)
         return data
 
