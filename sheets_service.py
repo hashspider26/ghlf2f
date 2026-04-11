@@ -2,6 +2,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from config import GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SHEET_ID
 from utils import logger
+from thefuzz import process
 
 class SheetsService:
     def __init__(self):
@@ -34,21 +35,17 @@ class SheetsService:
             title = s.title.upper()
             if "MENTORSHIP" in title and "SALES" in title:
                 self.sales_sheet = s
-                logger.info(f"Connected to Sales Sheet: '{s.title}'")
                 break
         
         if not self.sales_sheet:
             self.sales_sheet = all_sheets[0]
-            logger.warning(f"Could not find Sales tab. Falling back to '{self.sales_sheet.title}'")
 
         # 2. Connect to (or create) Memory Sheet
         try:
             self.memory_sheet = self.spreadsheet.worksheet("BOT_MEMORY")
-            logger.info("Connected to 'BOT_MEMORY' storage sheet.")
         except gspread.WorksheetNotFound:
             self.memory_sheet = self.spreadsheet.add_worksheet(title="BOT_MEMORY", rows="1000", cols="3")
             self.memory_sheet.append_row(["Email", "Message ID", "Timestamp"])
-            logger.info("Created new 'BOT_MEMORY' storage sheet.")
 
     def find_row_by_email(self, email: str):
         """Finds row index in Sales Sheet by matching email in column C (Index 3)."""
@@ -63,16 +60,34 @@ class SheetsService:
             logger.error(f"Sheet Error (find_by_email): {e}")
             return None
 
-    def find_row_by_name(self, name: str):
-        """Finds row index in Sales Sheet by matching name in column B (Index 2)."""
+    def find_row_by_name(self, name_to_find: str):
+        """Uses Fuzzy Matching to find a row by name in column B (Index 2)."""
         try:
-            name_clean = name.strip()
-            import re
-            pattern = re.compile(rf"^{re.escape(name_clean)}$", re.IGNORECASE)
-            cell = self.sales_sheet.find(pattern, in_column=2)
-            return cell.row if cell else None
+            # 1. Get all names from Column B
+            # We use col_values(2) to get the whole column (skipping header)
+            all_names_with_headers = self.sales_sheet.col_values(2)
+            if not all_names_with_headers or len(all_names_with_headers) < 2:
+                return None
+            
+            # Skip the header (Row 1) and create a list of (name, row_index)
+            # row_index will be i + 1
+            name_list = all_names_with_headers[1:] 
+            
+            # 2. Use Fuzzy Matching to find the best match
+            match, score = process.extractOne(name_to_find, name_list)
+            
+            logger.info(f"Fuzzy Match: Input='{name_to_find}', Match='{match}', Score={score}")
+            
+            # 3. Only accept if score is high (75% or better)
+            if score >= 75:
+                # Find the index of this match in the list to get the row number
+                # add +2 because we skipped the header (+1) and gspread is 1-indexed (+1)
+                match_index = name_list.index(match)
+                return match_index + 2
+            
+            return None
         except Exception as e:
-            logger.error(f"Sheet Error (find_by_name): {e}")
+            logger.error(f"Fuzzy Search Error: {e}")
             return None
 
     def update_sales_data(self, row_index: int, data: dict):
@@ -104,26 +119,20 @@ class SheetsService:
             logger.error(f"Error updating status: {e}")
             return False
 
-    # --- BOT MEMORY METHODS ---
-
     def save_message_tracking(self, email: str, message_id: int):
         """Saves message link in the hidden BOT_MEMORY sheet."""
         try:
             email_clean = email.strip().lower()
-            # Try to find existing entry
             try:
                 cell = self.memory_sheet.find(email_clean, in_column=1)
                 if cell:
                     self.memory_sheet.update_acell(f"B{cell.row}", str(message_id))
-                    logger.info(f"Updated existing memory for {email_clean}")
                     return True
             except gspread.CellNotFound:
                 pass
             
-            # If not found, append new row
             from datetime import datetime
             self.memory_sheet.append_row([email_clean, str(message_id), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-            logger.info(f"Added new memory entry for {email_clean}")
             return True
         except Exception as e:
             logger.error(f"Memory Save Error: {e}")
