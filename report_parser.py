@@ -59,12 +59,13 @@ def parse_sales_report(text: str) -> Optional[dict]:
         plan_match = re.search(r"Payment plan:\s*([\s\S]*?)(?=Amount:|Payment Platform:|Platform:|$)", full_text, re.IGNORECASE)
         plan_raw = plan_match.group(1).lower().strip() if plan_match else ""
         
-        # Numeric Mapping (Magic Numbers)
+        # Numeric Mapping (Magic Numbers) - SECTION 5
         PRICE_TO_PLAN = {
-            "1960": "6 Payment Plan",
-            "1125": "12 Payment Plan",
+            "3500": "3 PIF",
             "7225": "6 PIF",
-            "9800": "12 PIF"
+            "9800": "12 PIF",
+            "1960": "6Payment Plan",
+            "1125": "12 Payment Plan"
         }
 
         # Check for magic numbers first
@@ -84,7 +85,6 @@ def parse_sales_report(text: str) -> Optional[dict]:
             if "12" in plan_raw: months = "12"
             elif "6" in plan_raw: months = "6"
             elif "3" in plan_raw: months = "3"
-            # NO DEFAULT ASSUMPTION. If no months are specified, it remains None.
             
             if months:
                 if "1month" in plan_raw.replace(" ", ""):
@@ -92,7 +92,11 @@ def parse_sales_report(text: str) -> Optional[dict]:
                 elif any(x in plan_raw for x in ["paid", "full", "pif"]):
                     payment_plan = f"{months} PIF"
                 elif any(x in plan_raw for x in ["pp", "plan", "install"]):
-                    payment_plan = f"{months} Payment Plan"
+                    # Match spacing from the dropdown screenshot
+                    if months == "12":
+                        payment_plan = "12 Payment Plan"
+                    else:
+                        payment_plan = f"{months}Payment Plan"
 
         # If we couldn't determine a SPECIFIC plan, trigger human intervention
         if not payment_plan:
@@ -116,7 +120,10 @@ def parse_sales_report(text: str) -> Optional[dict]:
         if not all([name, email, amount > 0]):
             return None
 
-        now = datetime.now()
+        # 7. Date (EST Timezone)
+        from datetime import timezone, timedelta
+        est = timezone(timedelta(hours=-5)) # Central/Eastern varies, but -5 is standard EST
+        now = datetime.now(est)
         date_str = f"{now.month}/{now.day}/{now.year}"
         
         data = {

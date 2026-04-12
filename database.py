@@ -24,7 +24,7 @@ def init_db():
     logger.info("Bot memory database initialized.")
 
 def save_message_tracking(email: str, message_id: int):
-    """Saves student email linked to a telegram message ID."""
+    """Saves client email linked to a telegram message ID."""
     try:
         email_clean = email.strip().lower()
         conn = sqlite3.connect(DB_PATH)
@@ -35,14 +35,14 @@ def save_message_tracking(email: str, message_id: int):
         ''', (email_clean, message_id))
         conn.commit()
         conn.close()
-        logger.info(f"Memory: Saved message {message_id} for student {email_clean}")
+        logger.info(f"Memory: Saved message {message_id} for client {email_clean}")
         return True
     except Exception as e:
         logger.error(f"Memory Error (save): {e}")
         return False
 
 def get_message_tracking(email: str):
-    """Retrieves the telegram message ID linked to a student email."""
+    """Retrieves the telegram message ID linked to a client email."""
     try:
         email_clean = email.strip().lower()
         conn = sqlite3.connect(DB_PATH)

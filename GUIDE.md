@@ -15,7 +15,7 @@ The bot monitors a specific Telegram group (Closers Group) for sales reports. Wh
 ### 2. Onboarding Automation (Webhooks)
 The bot acts as a receiver for GoHighLevel webhooks to track the onboarding progress:
 - **Contract Tracking**: When a contract is signed in GHL, the bot automatically checks the corresponding box in Google Sheets (Column R).
-- **Course Access**: When course access tags are applied in GHL, the bot updates the Google Sheet (Column S) to confirm the student is set up.
+- **Course Access**: When course access tags are applied in GHL, the bot updates the Google Sheet (Column S) to confirm the client is set up.
 
 ---
 

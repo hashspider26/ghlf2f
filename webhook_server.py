@@ -38,36 +38,43 @@ async def ghl_webhook(request: Request, background_tasks: BackgroundTasks, token
         return {"status": "ignored", "reason": "row_not_found"}
 
     # Process Onboarding Events
-    replies = []
+    replies = [] # List of (clean_msg, va_msg)
     
     # 1. Check for Contract Signed
     contract_tag = PROGRAMS['default']['webhook_tags'].get('contract_signed', 'signed')
     if contract_tag in tags or event_type == "contract_signed":
         success = sheets_service.update_onboarding_status(row_index, "R")
         if success:
-            replies.append("Contract Signed! ✍️")
+            replies.append((
+                "Contract Signed! ✍️", 
+                f"✍️ **Contract Signed!**\nClient: {email}"
+            ))
 
     # 2. Check for Course Access Tags
     course_tags = PROGRAMS['default']['webhook_tags']['course_access']
     if any(tag in tags for tag in course_tags):
         success = sheets_service.update_onboarding_status(row_index, "S")
         if success:
-            replies.append("Course Access Granted! 🎓")
+            replies.append((
+                "The course has been sent to the mentee.", 
+                f"🎓 **The course has been sent to the mentee.**\nClient: {email}"
+            ))
 
-    # 3. Send Individual Replies for each event
+    # 3. Send Individual Replies/Notifications for each event
     if replies:
         msg_id = sheets_service.get_message_tracking(email)
-        if msg_id:
-            for reply_text in replies:
-                background_tasks.add_task(
-                    send_telegram_reply, 
-                    CLOSERS_GROUP_ID, 
-                    msg_id, 
-                    reply_text
-                )
-                logger.info(f"Queued onboarding reply: '{reply_text}' for {email}")
-        else:
-            logger.warning(f"Onboarding detected for {email} but no msg_id found for reply.")
+        from utils import send_public_notification
+        for clean_text, va_text in replies:
+            background_tasks.add_task(
+                send_public_notification, 
+                clean_text, 
+                va_text=va_text,
+                reply_to_message_id=msg_id
+            )
+            logger.info(f"Queued dual-group notification for {email}")
+        
+        if not msg_id:
+            logger.warning(f"Onboarding detected for {email} but no msg_id found for original report. Sent to default groups.")
 
     return {"status": "success"}
 

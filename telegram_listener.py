@@ -71,4 +71,20 @@ async def handle_closers_message(update: Update, context: ContextTypes.DEFAULT_T
     else:
         await send_va_alert(f"Contact {data['email']} not found in GHL.", text)
 
+    # 6. Confirmation Messages
+    from utils import send_public_notification
+    clean_msg = "This agreement has been sent."
+    va_detail_msg = (
+        f"✅ **{clean_msg}**\n\n"
+        f"👤 **Client:** {data['name']}\n"
+        f"📧 **Email:** {data['email']}\n"
+        f"💳 **Plan:** {data['payment_plan']}"
+    )
+    
+    await send_public_notification(
+        clean_msg,
+        va_text=va_detail_msg,
+        reply_to_message_id=update.message.message_id
+    )
+
     logger.info("Sales report processed successfully.")

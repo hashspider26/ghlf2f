@@ -29,11 +29,20 @@ VALID_PLATFORMS = [
 PROGRAMS = {
     "default": {
         "tags": {
+            "3 PIF": "#3mo-full-contract-send",
             "6 PIF": "#6mo-full-contract-send",
-            "6 Payment Plan": "#6mo-full-pplan-contract-send"
+            "12 PIF": "#12mo-full-contract-send",
+            "6Payment Plan": "#6mo-pplan-contract-send",
+            "12 Payment Plan": "#12mo-pplan-contract-send"
         },
         "webhook_tags": {
-            "course_access": ["#6mo-full-payment-april", "#6mo-payment-plan-april"],
+            "course_access": [
+                "#3mo-full-payment-april", 
+                "#6mo-full-payment-april", 
+                "#12mo-full-payment-april",
+                "#6mo-payment-plan-april",
+                "#12mo-payment-plan-april"
+            ],
             "contract_signed": "signed"
         }
     }
