@@ -1,0 +1,113 @@
+TELEGRAM ONBOARDING BOT
+Developer Specification Document
+Project Owner: Suzie / Darius Benders  |  Date: April 9, 2026
+1. Overview
+Build a Telegram bot that monitors a closers group chat, parses sales reports posted by closers, and automatically fills in corresponding rows in a Google Sheet. The Google Sheet is already connected to Go High Level (GHL), so once the sheet is updated, data flows into GHL automatically.
+
+The dev will also be given GHL admin access to configure tags/workflows directly.
+
+2. System Architecture
+The bot follows this flow:
+Closer posts a sales report in the Telegram closers group.
+The Telegram bot parses the message against the expected format.
+If valid: Match the client in the Google Sheet, fill in payment columns, apply the correct GHL tag, and send a confirmation message.
+If invalid (unexpected amount, bad format, etc.): Post an alert to the Internal VA Group asking the team to coordinate manually.
+
+3. Access & Credentials
+
+4. Google Sheet — Existing Setup
+The sheet is already connected to GHL. When a client pays the $500 deposit, GHL automatically creates a row with: Name, Email, Phone, and Deposit amount.
+
+The bot's job is to fill in the REMAINING columns for an existing row (matched by client full name AND/OR email):
+
+
+Onboarding Checkbox Columns (P–S)
+These columns use checkboxes and are updated based on GHL tag events:
+
+
+5. Payment Tiers & Tag Mapping
+The bot must recognize the following exact dollar amounts from the closer’s report and map them to the correct payment plan type and GHL tag. Any amount NOT in this list should trigger a human intervention alert.
+
+
+6-Month Paid in Full amount is confirmed as $7,225.
+
+Payment Plan Field Values
+
+Expected Closer Report Format
+Closers post in the Telegram group using this format:
+
+Status: Closed
+
+Name: [Client Name]
+
+Email: [Client Email]
+
+Payment plan: [Paid in full / Payment plan]
+
+Amount: $[Amount]
+
+Platform: [Platform]
+
+Notes: [Any notes]
+
+Valid payment platforms: Fanbasis, Stripe, Flexxbuy, Wire Transfer, Zelle, Shoppay.
+
+6. GHL Tag & Onboarding Workflow
+The onboarding process uses GHL tags to trigger automations. The bot’s primary job is to apply the correct agreement tag when a closer reports a valid payment, then listen for downstream events to update the sheet and send confirmation messages.
+
+Step 1: Deposit (Already Automated — No Bot Action)
+Client pays $500 deposit. GHL auto-creates a row in the sheet and applies the deposit tag.
+Tag: #c2c-deposit-april
+Workflow: Enrollment Agreement (deposit payer)
+Sheet update: Columns P and Q — handled by GHL
+
+Step 2: Closer Reports Payment (BOT ACTION REQUIRED)
+This is the bot’s primary trigger. When the closer posts a valid sales report, the bot must:
+Match the client in the Google Sheet by full name AND/OR email.
+Update the Google Sheet: Payment Plan, Payment Platform, Date, 1st Payment, Notes.
+Apply the correct GHL tag (see table in Section 5).
+Post a confirmation message to the Closers group AND the Internal VA Group:
+
+    “This agreement has been sent.”
+
+If the amount is NOT recognized, do NOT update the sheet or apply any tag. Instead, alert the Internal VA Group for human intervention.
+
+Step 3: Client Signs Mentorship Contract (GHL Automation)
+Once the client signs the mentorship agreement, GHL automation fires. The bot must listen for this event and check off column R (“Mentorship Contract Signed?”) in the sheet.
+
+Step 4: Onboarding Course Access — Onboarding Tags
+After signing, GHL applies the onboarding tag. The bot must listen for these tags, check off column S (“Mentorship Course Access”), and post a message to both groups:
+
+    “The course has been sent to the mentee.”
+
+
+7. Edge Case Handling
+If the report does NOT match the expected format (unrecognized amount, missing fields, bad format), the bot should:
+NOT update the Google Sheet or trigger any GHL tags.
+Post a message to the Internal VA Group alerting the team.
+Include the original message and ask the team to coordinate the sales report manually.
+
+8. Bot Behavior Summary
+
+9. Hosting & Deployment
+Preferred Host: Railway
+Repo: Team GitHub
+Bot Token: Obtained from @BotFather for @suzieonboarding_bot
+
+DISCLAIMER: We’d like to host this on Railway with our GitHub repo. Dev — please confirm whether Railway supports everything this bot needs (always-on process, GHL webhook listener, Google Sheets API integration, Telegram bot polling/webhook). If Railway has any limitations for this use case, please recommend an alternative hosting solution before starting development.
+
+10. Pending Items
+The following items are still needed before development can begin:
+Grant Google Sheet edit access — dev to share their email, Suzie grants access.
+Send 3–5 real examples of sales reports — for testing the parser.
+Confirm all valid amounts are captured correctly before going live.
+GitHub repo access — share repo URL and invite dev.
+
+11. Questions for Dev to Clarify
+Should the bot send a confirmation message back to the Closers group after successfully logging a report? (Current spec: YES — “This agreement has been sent.”)
+How should the bot listen for downstream GHL tag events (Steps 3–4)? Via GHL webhook to Railway, or by polling the GHL API?
+
+12. Program Reference
+The current program name is Credit2Capital (C2C). This label matters for future scalability — the bot should be built to support multiple programs so tags and sheet updates can be program-specific as we expand.
+
+Known programs: Credit2Capital (C2C), First Million Mastermind (FMM), Get the Bag, Flip the Bag.
